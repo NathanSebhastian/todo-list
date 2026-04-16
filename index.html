@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Todos</title>
+  <script>
+    (function () {
+      try {
+        var k = "todo-list-theme";
+        var stored = localStorage.getItem(k);
+        var theme =
+          stored === "dark" || stored === "light"
+            ? stored
+            : window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f5f2;
+      --surface: #fff;
+      --text: #1a1a1a;
+      --muted: #6b6b6b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --done: #94a3b8;
+      --border: #e5e5e0;
+      --radius: 10px;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      --warn: #b45309;
+      --warn-bg: #fffbeb;
+      --edit-hover-bg: #eff6ff;
+      --delete-hover-bg: #fef2f2;
+      --modal-overlay: rgba(15, 23, 42, 0.45);
+      --modal-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.2);
+    }
+
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #12151a;
+      --surface: #1c2128;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --done: #6b7280;
+      --border: #30363d;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+      --warn: #fbbf24;
+      --warn-bg: #422006;
+      --edit-hover-bg: rgba(59, 130, 246, 0.2);
+      --delete-hover-bg: rgba(248, 113, 113, 0.18);
+      --modal-overlay: rgba(0, 0, 0, 0.72);
+      --modal-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.55);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      color: var(--text);
+      background: var(--bg);
+      padding: 2rem 1rem 3rem;
+    }
+
+    .wrap {
+      max-width: 32rem;
+      margin: 0 auto;
+    }
+
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .app-header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+
+    .theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.4rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--muted);
+      box-shadow: var(--shadow);
+      flex-shrink: 0;
+      transition: border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .theme-toggle:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
+
+    .theme-toggle:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .theme-toggle-track {
+      position: relative;
+      width: 2.5rem;
+      height: 1.35rem;
+      border-radius: 999px;
+      background: var(--border);
+      flex-shrink: 0;
+      transition: background 0.2s ease;
+    }
+
+    .theme-toggle[aria-pressed="true"] .theme-toggle-track {
+      background: var(--accent);
+    }
+
+    .theme-toggle-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: calc(1.35rem - 6px);
+      height: calc(1.35rem - 6px);
+      border-radius: 50%;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      transition: transform 0.2s ease;
+    }
+
+    .theme-toggle[aria-pressed="true"] .theme-toggle-thumb {
+      transform: translateX(1.15rem);
+    }
+
+    .theme-toggle-label {
+      min-width: 2.75rem;
+      text-align: left;
+    }
+
+    .form-main {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .form-extra {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .form-extra label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    input[type="text"],
+    input[type="date"],
+    textarea,
+    select {
+      padding: 0.55rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      font: inherit;
+      box-shadow: var(--shadow);
+    }
+
+    input[type="text"] {
+      flex: 1;
+      min-width: 0;
+    }
+
+    input[type="date"] {
+      max-width: 12rem;
+    }
+
+    textarea {
+      min-height: 4rem;
+      resize: vertical;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-color: transparent;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-start;
+    }
+
+    button[type="submit"] {
+      padding: 0.65rem 1rem;
+      border: none;
+      border-radius: var(--radius);
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: var(--shadow);
+      align-self: flex-start;
+    }
+
+    button[type="submit"]:hover {
+      background: var(--accent-hover);
+    }
+
+    button[type="submit"]:active {
+      transform: scale(0.98);
+    }
+
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    li {
+      padding: 0.75rem 0.85rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    li:last-child {
+      border-bottom: none;
+    }
+
+    li.status-done .item-title {
+      color: var(--done);
+      text-decoration: line-through;
+    }
+
+    .item-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .item-row select {
+      flex-shrink: 0;
+      max-width: 9.5rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .item-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .item-title {
+      font-weight: 500;
+      word-break: break-word;
+    }
+
+    .item-desc {
+      margin: 0.35rem 0 0;
+      font-size: 0.875rem;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .item-meta {
+      margin-top: 0.35rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .item-meta.due-overdue {
+      color: var(--warn);
+      font-weight: 500;
+    }
+
+    .item-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.2rem;
+      flex-shrink: 0;
+    }
+
+    .edit,
+    .delete {
+      padding: 0.35rem 0.5rem;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .edit:hover {
+      color: var(--accent);
+      background: var(--edit-hover-bg);
+    }
+
+    .delete:hover {
+      color: #dc2626;
+      background: var(--delete-hover-bg);
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      background: var(--modal-overlay);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+
+    .modal-backdrop[hidden] {
+      display: none !important;
+    }
+
+    .modal-dialog {
+      width: 100%;
+      max-width: 22rem;
+      max-height: min(90vh, 36rem);
+      overflow: auto;
+      background: var(--surface);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: var(--modal-shadow);
+      animation: modal-in 0.2s ease-out;
+    }
+
+    @keyframes modal-in {
+      from {
+        opacity: 0;
+        transform: scale(0.96) translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 1rem 1rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .modal-close {
+      width: 2.25rem;
+      height: 2.25rem;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-close:hover {
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    #edit-form {
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    #edit-form label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    #edit-form input[type="text"],
+    #edit-form input[type="date"],
+    #edit-form select,
+    #edit-form textarea {
+      font-size: 1rem;
+    }
+
+    #edit-form textarea {
+      min-height: 5rem;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      padding-top: 0.25rem;
+      margin-top: 0.25rem;
+    }
+
+    .btn-secondary {
+      padding: 0.55rem 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg);
+    }
+
+    .btn-primary {
+      padding: 0.55rem 1rem;
+      border: none;
+      border-radius: var(--radius);
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 2rem 1rem;
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px dashed var(--border);
+    }
+
+    .hint {
+      margin-top: 1rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="app-header">
+      <h1>Todos</h1>
+      <button
+        type="button"
+        id="theme-toggle"
+        class="theme-toggle"
+        aria-pressed="false"
+        aria-label="Switch to dark theme"
+      >
+        <span class="theme-toggle-label">Light</span>
+        <span class="theme-toggle-track" aria-hidden="true">
+          <span class="theme-toggle-thumb"></span>
+        </span>
+      </button>
+    </header>
+    <form id="form" autocomplete="off">
+      <div class="form-main">
+        <input
+          id="input"
+          type="text"
+          placeholder="Title"
+          maxlength="200"
+          aria-label="Task title"
+        />
+        <button type="submit">Add</button>
+      </div>
+      <div class="form-extra">
+        <label>
+          Due date <span style="font-weight:400">(optional)</span>
+          <input id="due" type="date" aria-label="Due date" />
+        </label>
+        <label>
+          Description <span style="font-weight:400">(optional)</span>
+          <textarea
+            id="description"
+            placeholder="Notes…"
+            maxlength="2000"
+            aria-label="Description"
+          ></textarea>
+        </label>
+      </div>
+    </form>
+    <ul id="list" hidden></ul>
+    <p id="empty" class="empty">Nothing here yet. Add a task above.</p>
+    <p class="hint">Your list is saved in this browser.</p>
+  </div>
+
+  <div
+    id="modal-backdrop"
+    class="modal-backdrop"
+    hidden
+    role="presentation"
+  >
+    <div
+      class="modal-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-modal-title"
+    >
+      <div class="modal-header">
+        <h2 id="edit-modal-title">Edit task</h2>
+        <button type="button" class="modal-close" id="modal-close" aria-label="Close">
+          ×
+        </button>
+      </div>
+      <form id="edit-form" autocomplete="off">
+        <label>
+          Title
+          <input id="edit-title" type="text" maxlength="200" required aria-required="true" />
+        </label>
+        <label>
+          Status
+          <select id="edit-status" aria-label="Status"></select>
+        </label>
+        <label>
+          Due date <span style="font-weight: 400">(optional)</span>
+          <input id="edit-due" type="date" />
+        </label>
+        <label>
+          Description <span style="font-weight: 400">(optional)</span>
+          <textarea
+            id="edit-description"
+            placeholder="Notes…"
+            maxlength="2000"
+            aria-label="Description"
+          ></textarea>
+        </label>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="edit-cancel">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "simple-todos-v1";
+    const STATUSES = [
+      { value: "backlog", label: "Backlog" },
+      { value: "in_progress", label: "In progress" },
+      { value: "done", label: "Done" },
+    ];
+
+    const form = document.getElementById("form");
+    const input = document.getElementById("input");
+    const dueInput = document.getElementById("due");
+    const descInput = document.getElementById("description");
+    const list = document.getElementById("list");
+    const empty = document.getElementById("empty");
+    const modalBackdrop = document.getElementById("modal-backdrop");
+    const editForm = document.getElementById("edit-form");
+    const editTitle = document.getElementById("edit-title");
+    const editStatus = document.getElementById("edit-status");
+    const editDue = document.getElementById("edit-due");
+    const editDescription = document.getElementById("edit-description");
+    const editCancel = document.getElementById("edit-cancel");
+    const modalClose = document.getElementById("modal-close");
+    const themeToggle = document.getElementById("theme-toggle");
+    const themeToggleLabel = themeToggle.querySelector(".theme-toggle-label");
+
+    const THEME_KEY = "todo-list-theme";
+
+    function getTheme() {
+      return document.documentElement.getAttribute("data-theme") === "dark"
+        ? "dark"
+        : "light";
+    }
+
+    function setTheme(theme) {
+      document.documentElement.setAttribute(
+        "data-theme",
+        theme === "dark" ? "dark" : "light"
+      );
+      try {
+        localStorage.setItem(THEME_KEY, theme === "dark" ? "dark" : "light");
+      } catch (e) {}
+      syncThemeToggle();
+    }
+
+    function syncThemeToggle() {
+      const dark = getTheme() === "dark";
+      themeToggle.setAttribute("aria-pressed", dark ? "true" : "false");
+      themeToggle.setAttribute(
+        "aria-label",
+        dark ? "Switch to light theme" : "Switch to dark theme"
+      );
+      themeToggleLabel.textContent = dark ? "Dark" : "Light";
+    }
+
+    themeToggle.addEventListener("click", () => {
+      setTheme(getTheme() === "dark" ? "light" : "dark");
+    });
+
+    syncThemeToggle();
+
+    STATUSES.forEach((s) => {
+      const opt = document.createElement("option");
+      opt.value = s.value;
+      opt.textContent = s.label;
+      editStatus.appendChild(opt);
+    });
+
+    let editIndex = null;
+    let returnFocusEl = null;
+
+    function openEditModal(index, focusReturn) {
+      const item = todos[index];
+      if (!item) return;
+      editIndex = index;
+      returnFocusEl = focusReturn || null;
+      editTitle.value = item.text;
+      editStatus.value = item.status;
+      editDue.value = item.dueDate || "";
+      editDescription.value = item.description || "";
+      modalBackdrop.hidden = false;
+      document.body.style.overflow = "hidden";
+      requestAnimationFrame(() => {
+        editTitle.focus();
+        editTitle.select();
+      });
+    }
+
+    function closeEditModal() {
+      if (editIndex === null && modalBackdrop.hidden) return;
+      editIndex = null;
+      modalBackdrop.hidden = true;
+      document.body.style.overflow = "";
+      if (returnFocusEl && typeof returnFocusEl.focus === "function") {
+        returnFocusEl.focus();
+      }
+      returnFocusEl = null;
+    }
+
+    function normalizeItem(raw) {
+      if (raw && typeof raw === "object" && "status" in raw) {
+        const status = STATUSES.some((s) => s.value === raw.status)
+          ? raw.status
+          : "backlog";
+        return {
+          text: String(raw.text || "").slice(0, 200),
+          status,
+          dueDate: raw.dueDate ? String(raw.dueDate).slice(0, 10) : "",
+          description: String(raw.description || "").slice(0, 2000),
+        };
+      }
+      if (raw && typeof raw === "object" && "text" in raw) {
+        return {
+          text: String(raw.text || "").slice(0, 200),
+          status: raw.done ? "done" : "backlog",
+          dueDate: "",
+          description: "",
+        };
+      }
+      return null;
+    }
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const data = JSON.parse(raw);
+        if (!Array.isArray(data)) return [];
+        return data.map(normalizeItem).filter(Boolean);
+      } catch {
+        return [];
+      }
+    }
+
+    function save(todos) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+    }
+
+    let todos = load();
+
+    function startOfToday() {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    }
+
+    function parseDue(ts) {
+      if (!ts || !/^\d{4}-\d{2}-\d{2}$/.test(ts)) return null;
+      const [y, m, day] = ts.split("-").map(Number);
+      const d = new Date(y, m - 1, day);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    }
+
+    function formatDueDisplay(iso) {
+      if (!iso) return "";
+      const t = parseDue(iso);
+      if (t === null) return "";
+      return new Date(t).toLocaleDateString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    }
+
+    function isOverdue(item) {
+      if (item.status === "done" || !item.dueDate) return false;
+      const t = parseDue(item.dueDate);
+      if (t === null) return false;
+      return t < startOfToday();
+    }
+
+    function render() {
+      list.innerHTML = "";
+      if (todos.length === 0) {
+        list.hidden = true;
+        empty.hidden = false;
+        return;
+      }
+      empty.hidden = true;
+      list.hidden = false;
+
+      todos.forEach((item, index) => {
+        const li = document.createElement("li");
+        li.classList.toggle("status-done", item.status === "done");
+
+        const row = document.createElement("div");
+        row.className = "item-row";
+
+        const sel = document.createElement("select");
+        sel.setAttribute("aria-label", "Status");
+        STATUSES.forEach((s) => {
+          const opt = document.createElement("option");
+          opt.value = s.value;
+          opt.textContent = s.label;
+          if (s.value === item.status) opt.selected = true;
+          sel.appendChild(opt);
+        });
+        sel.addEventListener("change", () => {
+          todos[index].status = sel.value;
+          save(todos);
+          render();
+        });
+
+        const body = document.createElement("div");
+        body.className = "item-body";
+
+        const titleEl = document.createElement("div");
+        titleEl.className = "item-title";
+        titleEl.textContent = item.text;
+
+        body.appendChild(titleEl);
+
+        if (item.description.trim()) {
+          const descEl = document.createElement("p");
+          descEl.className = "item-desc";
+          descEl.textContent = item.description.trim();
+          body.appendChild(descEl);
+        }
+
+        if (item.dueDate) {
+          const meta = document.createElement("div");
+          meta.className = "item-meta";
+          if (isOverdue(item)) meta.classList.add("due-overdue");
+          meta.textContent = isOverdue(item)
+            ? "Overdue · due " + formatDueDisplay(item.dueDate)
+            : "Due " + formatDueDisplay(item.dueDate);
+          body.appendChild(meta);
+        }
+
+        const actions = document.createElement("div");
+        actions.className = "item-actions";
+
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "edit";
+        editBtn.textContent = "Edit";
+        editBtn.setAttribute("aria-label", "Edit task");
+        editBtn.addEventListener("click", () => openEditModal(index, editBtn));
+
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "delete";
+        del.textContent = "Remove";
+        del.setAttribute("aria-label", "Remove task");
+        del.addEventListener("click", () => {
+          todos.splice(index, 1);
+          save(todos);
+          render();
+        });
+
+        actions.append(editBtn, del);
+        row.append(sel, body, actions);
+        li.appendChild(row);
+        list.appendChild(li);
+      });
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      const dueVal = dueInput.value.trim();
+      const descVal = descInput.value.trim();
+      todos.push({
+        text,
+        status: "backlog",
+        dueDate: dueVal,
+        description: descVal,
+      });
+      save(todos);
+      input.value = "";
+      dueInput.value = "";
+      descInput.value = "";
+      input.focus();
+      render();
+    });
+
+    editForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (editIndex === null) return;
+      const text = editTitle.value.trim();
+      if (!text) {
+        editTitle.focus();
+        return;
+      }
+      const dueVal = editDue.value.trim();
+      todos[editIndex] = {
+        text: text.slice(0, 200),
+        status: editStatus.value,
+        dueDate: dueVal.slice(0, 10),
+        description: editDescription.value.trim().slice(0, 2000),
+      };
+      save(todos);
+      returnFocusEl = null;
+      closeEditModal();
+      render();
+      input.focus();
+    });
+
+    editCancel.addEventListener("click", () => closeEditModal());
+    modalClose.addEventListener("click", () => closeEditModal());
+
+    modalBackdrop.addEventListener("click", (e) => {
+      if (e.target === modalBackdrop) closeEditModal();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !modalBackdrop.hidden) {
+        e.preventDefault();
+        closeEditModal();
+      }
+    });
+
+    render();
+    input.focus();
+  </script>
+</body>
+</html>
