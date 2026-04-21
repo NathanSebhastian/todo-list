@@ -172,6 +172,20 @@
       margin-bottom: 1rem;
     }
 
+    .list-controls {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 0.75rem;
+    }
+
+    .list-controls label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
     .form-extra label {
       font-size: 0.8rem;
       color: var(--muted);
@@ -541,6 +555,14 @@
         </label>
       </div>
     </form>
+    <div class="list-controls">
+      <label for="status-filter">
+        Filter
+        <select id="status-filter" aria-label="Filter tasks by status">
+          <option value="all">All</option>
+        </select>
+      </label>
+    </div>
     <ul id="list" hidden></ul>
     <p id="empty" class="empty">Nothing here yet. Add a task above.</p>
     <p class="hint">Your list is saved in this browser.</p>
@@ -608,6 +630,7 @@
     const descInput = document.getElementById("description");
     const list = document.getElementById("list");
     const empty = document.getElementById("empty");
+    const statusFilter = document.getElementById("status-filter");
     const modalBackdrop = document.getElementById("modal-backdrop");
     const editForm = document.getElementById("edit-form");
     const editTitle = document.getElementById("edit-title");
@@ -659,10 +682,16 @@
       opt.value = s.value;
       opt.textContent = s.label;
       editStatus.appendChild(opt);
+
+      const filterOpt = document.createElement("option");
+      filterOpt.value = s.value;
+      filterOpt.textContent = s.label;
+      statusFilter.appendChild(filterOpt);
     });
 
     let editIndex = null;
     let returnFocusEl = null;
+    let currentFilter = "all";
 
     function openEditModal(index, focusReturn) {
       const item = todos[index];
@@ -768,15 +797,25 @@
 
     function render() {
       list.innerHTML = "";
-      if (todos.length === 0) {
+      const visibleTodos =
+        currentFilter === "all"
+          ? todos
+          : todos.filter((item) => item.status === currentFilter);
+
+      if (visibleTodos.length === 0) {
         list.hidden = true;
         empty.hidden = false;
+        empty.textContent =
+          todos.length === 0
+            ? "Nothing here yet. Add a task above."
+            : "No tasks match this filter.";
         return;
       }
       empty.hidden = true;
       list.hidden = false;
 
-      todos.forEach((item, index) => {
+      visibleTodos.forEach((item) => {
+        const index = todos.indexOf(item);
         const li = document.createElement("li");
         li.classList.toggle("status-done", item.status === "done");
 
@@ -851,6 +890,11 @@
         list.appendChild(li);
       });
     }
+
+    statusFilter.addEventListener("change", () => {
+      currentFilter = statusFilter.value;
+      render();
+    });
 
     form.addEventListener("submit", (e) => {
       e.preventDefault();
