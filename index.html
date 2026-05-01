@@ -175,6 +175,8 @@
     .list-controls {
       display: flex;
       justify-content: flex-end;
+      gap: 0.75rem;
+      flex-wrap: wrap;
       margin-bottom: 0.75rem;
     }
 
@@ -562,6 +564,13 @@
           <option value="all">All</option>
         </select>
       </label>
+      <label for="sort-by">
+        Sort
+        <select id="sort-by" aria-label="Sort tasks">
+          <option value="none">None</option>
+          <option value="due">Due date</option>
+        </select>
+      </label>
     </div>
     <ul id="list" hidden></ul>
     <p id="empty" class="empty">Nothing here yet. Add a task above.</p>
@@ -631,6 +640,7 @@
     const list = document.getElementById("list");
     const empty = document.getElementById("empty");
     const statusFilter = document.getElementById("status-filter");
+    const sortBy = document.getElementById("sort-by");
     const modalBackdrop = document.getElementById("modal-backdrop");
     const editForm = document.getElementById("edit-form");
     const editTitle = document.getElementById("edit-title");
@@ -692,6 +702,7 @@
     let editIndex = null;
     let returnFocusEl = null;
     let currentFilter = "all";
+    let currentSort = "none";
 
     function openEditModal(index, focusReturn) {
       const item = todos[index];
@@ -795,14 +806,31 @@
       return t < startOfToday();
     }
 
+    function compareByDueThenTitle(a, b) {
+      const aDue = parseDue(a.dueDate);
+      const bDue = parseDue(b.dueDate);
+      if (aDue !== null && bDue !== null) {
+        if (aDue !== bDue) return aDue - bDue;
+        return a.text.localeCompare(b.text, undefined, { sensitivity: "base" });
+      }
+      if (aDue === null && bDue === null) {
+        return a.text.localeCompare(b.text, undefined, { sensitivity: "base" });
+      }
+      return aDue === null ? 1 : -1;
+    }
+
     function render() {
       list.innerHTML = "";
       const visibleTodos =
         currentFilter === "all"
           ? todos
           : todos.filter((item) => item.status === currentFilter);
+      const sortedVisibleTodos =
+        currentSort === "due"
+          ? [...visibleTodos].sort(compareByDueThenTitle)
+          : visibleTodos;
 
-      if (visibleTodos.length === 0) {
+      if (sortedVisibleTodos.length === 0) {
         list.hidden = true;
         empty.hidden = false;
         empty.textContent =
@@ -814,7 +842,7 @@
       empty.hidden = true;
       list.hidden = false;
 
-      visibleTodos.forEach((item) => {
+      sortedVisibleTodos.forEach((item) => {
         const index = todos.indexOf(item);
         const li = document.createElement("li");
         li.classList.toggle("status-done", item.status === "done");
@@ -893,6 +921,11 @@
 
     statusFilter.addEventListener("change", () => {
       currentFilter = statusFilter.value;
+      render();
+    });
+
+    sortBy.addEventListener("change", () => {
+      currentSort = sortBy.value;
       render();
     });
 
